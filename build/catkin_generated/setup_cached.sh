@@ -7,6 +7,4 @@
 # new environment variables
 
 # modified environment variables
-export PKG_CONFIG_PATH="/home/leehyungjik/catkin_ws/devel/lib/pkgconfig:$PKG_CONFIG_PATH"
 export PWD="/home/leehyungjik/catkin_ws/build"
-export PYTHONPATH="/home/leehyungjik/catkin_ws/devel/lib/python2.7/dist-packages:$PYTHONPATH"

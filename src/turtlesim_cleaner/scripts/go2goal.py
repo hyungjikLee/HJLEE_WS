@@ -2,93 +2,133 @@
 
 import rospy
 from geometry_msgs.msg import Twist
-from turtlesim.msg import Pose
-from math import pow, atan2, sqrt
+from math import pow, sqrt, atan, pi#, atan2
 
+"""
+   TurtleBot3(buger) MAX SPEED
+-----------------------------------
+MAX Linear  Speed: 0.22(meter /sec)
+MAX Angular Speed: 2.82(radian/sec)
+"""
+MAX_LIN_X = 0.22
+MAX_ANG_Z = 2.82
 
 class TurtleBot:
 
     def __init__(self):
-        # Creates a node with name 'turtlebot_controller' and make sure it is a
-        # unique node (using anonymous=True).
         rospy.init_node('turtlebot_controller', anonymous=True)
-
-        # Publisher which will publish to the topic '/turtle1/cmd_vel'.
-        self.pub = rospy.Publisher('/turtle1/cmd_vel', Twist, queue_size=10)
-
-        # A subscriber to the topic '/turtle1/pose'. self.update_pose is called
-        # when a message of type Pose is received.
-        self.sub = rospy.Subscriber('/turtle1/pose', Pose, self.update_pose)
-
-        self.pose = Pose()
+        self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         self.rate = rospy.Rate(10)
+        
+        self.lin_x = MAX_LIN_X / 2
+        self.ang_z = MAX_ANG_Z / 2
+        
+        self.wise  = 1
+        
+        """        x
+                   |
+             ------+------
+             |\    |    /|                     /|
+       case1 |0\   |   /0| case2              / |         1 radian = 57.2958 degree
+             |  \  |  /  |                   /30|         1 degree = 0.0174533 radian
+       +x,+y |   \0|0/   | +x,-y            /   |
+             |    \|/    |               2 /    | sqrt(3)
+       y-----+-----+-----+-----           /     |
+             |    /|\    |               /      |
+       -x,+y |   /0|0\   | -x,-y        /       |
+             |  /  |  \  |             /60    90|
+       case4 |0/   |   \0| case3      ----------+
+             |/    |    \|                 1
+             ------+------                            
+       
+        d = dist  = sqrt(abs(x) + abs(y))
+        
+        0 = angle = math.atan(abs(y) / abs(x))
+        
+        case 1:  0 =  math.atan(abs(y) / abs(x))
+        case 2: -0 = -math.atan(abs(y) / abs(x))
+        case 3: -(180 * 0.0174533 - 0) = -(pi - 0) = -(pi - math.atan(abs(y) / abs(x)))
+        case 4:   180 * 0.0174533 - 0  =   pi - 0  =   pi - math.atan(abs(y) / abs(x))
+        """ 
 
-    def update_pose(self, data):
-        """Callback function which is called when a new message of type Pose is
-        received by the subscriber."""
-        self.pose   = data
-        self.pose.x = round(self.pose.x, 4)
-        self.pose.y = round(self.pose.y, 4)
-
-    def euclidean_distance(self, goal_pose):
-        """Euclidean distance between current pose and the goal."""
-        return sqrt(pow((goal_pose.x - self.pose.x), 2) +
-                    pow((goal_pose.y - self.pose.y), 2))
-
-    def linear_vel(self, goal_pose, constant = 1.5):
-        """See video: https://www.youtube.com/watch?v=Qh15Nol5htM."""
-        return constant * self.euclidean_distance(goal_pose)
-
-    def steering_angle(self, goal_pose):
-        """See video: https://www.youtube.com/watch?v=Qh15Nol5htM."""
-        return atan2(goal_pose.y - self.pose.y, goal_pose.x - self.pose.x)
-
-    def angular_vel(self, goal_pose, constant=6):
-        """See video: https://www.youtube.com/watch?v=Qh15Nol5htM."""
-        return constant * (self.steering_angle(goal_pose) - self.pose.theta)
+    def get_dist(self, x, y):
+        return sqrt(pow(abs(x), 2) + pow(abs(y), 2))
+        
+        
+    def get_angle(self, x, y):
+    
+        if  (x >= 0 and y >= 0): # case 1: +0
+            return  atan(abs(y) / abs(x))
+            
+        elif(x >= 0 and y <  0): # case 2: -0
+            return -atan(abs(y) / abs(x))
+            
+        elif(x <  0 and y <  0): # case 3: -(pi-0)
+            return -(pi - atan(abs(y) / abs(x)))
+            
+        elif(x <  0 and y >= 0): # case 4:  (pi-0)
+            return   pi - atan(abs(y) / abs(x))
+        
 
     def move2goal(self):
-        """Moves the turtle to the goal."""
-        goal_pose = Pose()
-
-        # Get the input from the user.
-        goal_pose.x = input("Set your x goal: ")
-        goal_pose.y = input("Set your y goal: ")
-
-        # Please, insert a number slightly greater than 0 (e.g. 0.01).
-        distance_tolerance = input("Set your tolerance: ")
-
-        msg = Twist()
-
-        while self.euclidean_distance(goal_pose) >= distance_tolerance:
-
-            # Porportional controller.
-            # https://en.wikipedia.org/wiki/Proportional_control
-
-            # Linear velocity in the x-axis.
-            msg.linear.x  = self.linear_vel(goal_pose)
-            msg.linear.y  = msg.linear.z  = 0
-
-            # Angular velocity in the z-axis.
-            msg.angular.x = msg.angular.y = 0
-            msg.angular.z = self.angular_vel(goal_pose)
-
-            # Publishing our vel_msg
-            self.pub.publish(msg)
-
-            # Publish at the desired rate.
-            self.rate.sleep()
-
-        # Stopping our robot after the movement is over.
-        msg.linear.x = msg.angular.z = 0
-        self.pub.publish(msg)
-
-        # If we press control + C, the node will stop.
+    
+        goal_x    = input("Set your x goal: ")
+        goal_y    = input("Set your y goal: ")
+        
+        dist      = self.get_dist( goal_x, goal_y)
+        angle     = self.get_angle(goal_x, goal_y)
+        
+        if(angle < 0):
+            angle = -angle
+            wise  = -1
+        else:
+            wise  =  1
+                
+        time2turn = angle / self.ang_z
+        time2go   = dist  / self.lin_x
+        
+        twist = Twist()
+            
+        twist.angular.z = self.ang_z * wise
+        time2end = rospy.Time.now() + rospy.Duration(time2turn)
+        
+        self.pub.publish(twist)
+        rospy.sleep(0.001)
+        
+        while(rospy.Time.now() < time2end):   pass
+    
+        twist.angular.z = 0
+        self.pub.publish(twist)
+        
+        twist.linear.x = self.lin_x
+        time2end = rospy.Time.now() + rospy.Duration(time2go)
+        
+        self.pub.publish(twist)
+        rospy.sleep(0.001)
+        
+        while(rospy.Time.now() < time2end):   pass
+    
+        twist.linear.x = 0
+        self.pub.publish(twist)
+        
+        wise = -wise
+        
+        twist.angular.z = self.ang_z * wise
+        time2end = rospy.Time.now() + rospy.Duration(time2turn)
+        
+        self.pub.publish(twist)
+        rospy.sleep(0.001)
+        
+        while(rospy.Time.now() < time2end):   pass
+    
+        twist.angular.z = 0
+        self.pub.publish(twist)
+        
         rospy.spin()
+
 
 if __name__ == '__main__':
     try:
         x = TurtleBot()
         x.move2goal()
-    except rospy.ROSInterruptException:
-        pass
+    except rospy.ROSInterruptException:   pass

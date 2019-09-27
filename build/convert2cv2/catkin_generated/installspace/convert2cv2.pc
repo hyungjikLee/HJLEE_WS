@@ -1,0 +1,8 @@
+prefix=/home/leehyungjik/catkin_ws/install
+
+Name: convert2cv2
+Description: Description of convert2cv2
+Version: 0.0.0
+Cflags: 
+Libs: -L/home/leehyungjik/catkin_ws/install/lib 
+Requires: 
